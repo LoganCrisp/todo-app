@@ -1,103 +1,244 @@
-import Image from "next/image";
+"use client";
+
+import React, { useState } from "react";
+import Task from "@/components/task";
+
+// Helper functions for date filtering
+function isToday(dateStr: string) {
+  const today = new Date();
+  const date = new Date(dateStr + "T00:00:00"); // force local midnight
+  return (
+    date.getFullYear() === today.getFullYear() &&
+    date.getMonth() === today.getMonth() &&
+    date.getDate() === today.getDate()
+  );
+}
+
+function isThisWeek(dateStr: string) {
+  const today = new Date();
+  const date = new Date(dateStr);
+  const endOfWeek = new Date(today);
+  endOfWeek.setDate(today.getDate() + 6);
+  endOfWeek.setHours(23, 59, 59, 999);
+  today.setHours(0, 0, 0, 0);
+  return date >= today && date <= endOfWeek;
+}
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [tasks, setTasks] = useState([
+    {
+      title: "Buy groceries",
+      date: "2025-05-29",
+      time: "23:58",
+      location: "Supermarket",
+      priority: 1,
+      complete: false,
+    },
+    {
+      title: "Finish project report",
+      date: "2025-05-31",
+      priority: 1,
+      complete: false,
+    },
+    {
+      title: "Call Alice",
+      date: "2025-06-01",
+      time: "14:00",
+      priority: 3,
+      complete: false,
+    },
+    {
+      title: "Read textbook chapter",
+      date: "2025-06-02",
+      time: "20:00",
+      priority: 2,
+      complete: false,
+    },
+    {
+      title: "Team meeting",
+      date: "2025-06-03",
+      time: "10:00",
+      location: "Library",
+      priority: 1,
+      complete: false,
+    },
+    {
+      title: "Submit assignment",
+      date: "2025-06-04",
+      time: "23:59",
+      priority: 1,
+      complete: false,
+    },
+    {
+      title: "Laundry",
+      date: "2025-06-05",
+      priority: 3,
+      complete: false,
+    },
+    {
+      title: "Workout",
+      date: "2025-06-06",
+      time: "18:00",
+      priority: 2,
+      complete: false,
+    },
+    {
+      title: "Dentist appointment",
+      date: "2025-06-07",
+      time: "09:00",
+      priority: 1,
+      complete: false,
+    },
+    {
+      title: "Plan weekend trip",
+      date: "2025-06-08",
+      priority: 3,
+      complete: false,
+    },
+  ]);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+  const [tab, setTab] = useState<"today" | "week" | "later">("today");
+
+  const toggleTask = (index: number) => {
+    setTasks((prev) =>
+      prev.map((task, i) =>
+        i === index ? { ...task, complete: !task.complete } : task
+      )
+    );
+  };
+
+  // Filter tasks by tab
+  const filteredTasks = tasks.filter((task) => {
+    if (tab === "today") {
+      return isToday(task.date);
+    }
+    if (tab === "week") {
+      return isThisWeek(task.date);
+    }
+    return true; // "later" tab shows all tasks
+  });
+
+  // Helper to filter tasks by priority
+  const getTasksByPriority = (priority: number) =>
+    filteredTasks
+      .map((task, idx) => ({ ...task, idx: tasks.indexOf(task) }))
+      .filter((task) => task.priority === priority);
+
+  return (
+    <main className="flex flex-col items-center justify-center min-h-screen p-8 bg-[#222326]">
+      <h1 className="text-2xl font-bold mb-4 text-white">Todo List</h1>
+      <div className="w-full max-w-2xl">
+        {/* Tabs */}
+        <div className="flex">
+          <button
+            className={`flex-1 py-2 rounded-tl-lg rounded-tr-none rounded-bl-none rounded-br-none text-lg font-semibold border border-b-0 border-[#CC0000] ${
+              tab === "today"
+                ? "bg-white text-[#CC0000]"
+                : "bg-[#CC0000] text-white opacity-50 hover:opacity-80"
+            }`}
+            onClick={() => setTab("today")}
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            Today
+          </button>
+          <button
+            className={`flex-1 py-2 text-lg font-semibold border-t border-b-0 border-[#CC0000] ${
+              tab === "week"
+                ? "bg-white text-[#CC0000]"
+                : "bg-[#CC0000] text-white opacity-50 hover:opacity-80"
+            }`}
+            onClick={() => setTab("week")}
           >
-            Read our docs
-          </a>
+            This Week
+          </button>
+          <button
+            className={`flex-1 py-2 rounded-tr-lg rounded-tl-none rounded-bl-none rounded-br-none text-lg font-semibold border border-b-0 border-[#CC0000] ${
+              tab === "later"
+                ? "bg-white text-[#CC0000]"
+                : "bg-[#CC0000] text-white opacity-50 hover:opacity-80"
+            }`}
+            onClick={() => setTab("later")}
+          >
+            Later
+          </button>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+        {/* Red container */}
+        <div
+          className="bg-[#CC0000] rounded-b-lg pt-8 p-4 shadow-lg flex flex-col gap-6"
+          style={{ maxHeight: "500px", overflowY: "auto" }}
         >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+          {/* High Priority Folder */}
+          <div className="relative mb-2">
+            {/* Folder Tab */}
+            <div className="absolute -top-5  left-0 bg-white text-[#CC0000] font-bold px-6 py-1 rounded-t-lg border border-b-0 border-[#CC0000] shadow z-10">
+              High Priority
+            </div>
+            {/* Folder Body */}
+            <div className="pt-6 bg-white/90 rounded-lg border border-[#CC0000] shadow-inner min-h-[60px]">
+              <div className="flex flex-col gap-2 p-4">
+                {getTasksByPriority(1).length === 0 ? (
+                  <span className="text-[#CC0000]/70 text-sm">
+                    No high priority tasks
+                  </span>
+                ) : (
+                  getTasksByPriority(1).map((task) => (
+                    <Task
+                      key={task.idx}
+                      {...task}
+                      onToggle={() => toggleTask(task.idx)}
+                    />
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+          {/* Medium Priority Folder */}
+          <div className="relative mb-2">
+            <div className="absolute -top-5 left-0 bg-white text-[#CC0000] font-bold px-6 py-1 rounded-t-lg border border-b-0 border-[#CC0000] shadow z-10">
+              Medium Priority
+            </div>
+            <div className="pt-6 bg-white/90 rounded-lg border border-[#CC0000] shadow-inner min-h-[60px]">
+              <div className="flex flex-col gap-2 p-4">
+                {getTasksByPriority(2).length === 0 ? (
+                  <span className="text-[#CC0000]/70 text-sm">
+                    No medium priority tasks
+                  </span>
+                ) : (
+                  getTasksByPriority(2).map((task) => (
+                    <Task
+                      key={task.idx}
+                      {...task}
+                      onToggle={() => toggleTask(task.idx)}
+                    />
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+          {/* Low Priority Folder */}
+          <div className="relative">
+            <div className="absolute -top-5 left-0 bg-white text-[#CC0000] font-bold px-6 py-1 rounded-t-lg border border-b-0 border-[#CC0000] shadow z-10">
+              Low Priority
+            </div>
+            <div className="pt-6 bg-white/90 rounded-lg border border-[#CC0000] shadow-inner min-h-[60px]">
+              <div className="flex flex-col gap-2 p-4">
+                {getTasksByPriority(3).length === 0 ? (
+                  <span className="text-[#CC0000]/70 text-sm">
+                    No low priority tasks
+                  </span>
+                ) : (
+                  getTasksByPriority(3).map((task) => (
+                    <Task
+                      key={task.idx}
+                      {...task}
+                      onToggle={() => toggleTask(task.idx)}
+                    />
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
   );
 }
