@@ -120,9 +120,7 @@ export default function Home() {
 
   // Helper to filter tasks by priority
   const getTasksByPriority = (priority: number) =>
-    filteredTasks
-      .map((task, idx) => ({ ...task, idx: tasks.indexOf(task) }))
-      .filter((task) => task.priority === priority);
+    filteredTasks.filter((task) => task.priority === priority);
 
   return (
     <main className="flex flex-col items-center justify-center min-h-screen p-8 bg-[#222326]">
@@ -180,11 +178,11 @@ export default function Home() {
                     No high priority tasks
                   </span>
                 ) : (
-                  getTasksByPriority(1).map((task) => (
+                  getTasksByPriority(1).map((task, i) => (
                     <Task
-                      key={task.idx}
+                      key={i}
                       {...task}
-                      onToggle={() => toggleTask(task.idx)}
+                      onToggle={() => toggleTask(tasks.indexOf(task))}
                     />
                   ))
                 )}
@@ -203,11 +201,11 @@ export default function Home() {
                     No medium priority tasks
                   </span>
                 ) : (
-                  getTasksByPriority(2).map((task) => (
+                  getTasksByPriority(2).map((task, i) => (
                     <Task
-                      key={task.idx}
+                      key={i}
                       {...task}
-                      onToggle={() => toggleTask(task.idx)}
+                      onToggle={() => toggleTask(tasks.indexOf(task))}
                     />
                   ))
                 )}
@@ -226,11 +224,11 @@ export default function Home() {
                     No low priority tasks
                   </span>
                 ) : (
-                  getTasksByPriority(3).map((task) => (
+                  getTasksByPriority(3).map((task, i) => (
                     <Task
-                      key={task.idx}
+                      key={i}
                       {...task}
-                      onToggle={() => toggleTask(task.idx)}
+                      onToggle={() => toggleTask(tasks.indexOf(task))}
                     />
                   ))
                 )}
