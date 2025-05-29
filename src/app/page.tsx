@@ -1,7 +1,32 @@
 "use client";
 
-import React, { useState } from "react";
-import Task from "@/components/task";
+import React, { useState, useEffect } from "react";
+import { onAuthStateChanged, signOut } from "firebase/auth";
+import type { User } from "firebase/auth";
+import { auth } from "../firebase";
+import { db } from "../firebase";
+import {
+  collection,
+  query,
+  onSnapshot,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  doc,
+} from "firebase/firestore";
+import PriorityFolder from "@/components/PriorityFolder";
+import Modal from "@/components/Modal";
+import Login from "@/components/Auth";
+
+type Task = {
+  id: string;
+  title: string;
+  date: string;
+  time?: string;
+  location?: string;
+  priority: number;
+  complete: boolean;
+};
 
 // Helper functions for date filtering
 function isToday(dateStr: string) {
@@ -16,115 +41,144 @@ function isToday(dateStr: string) {
 
 function isThisWeek(dateStr: string) {
   const today = new Date();
-  const date = new Date(dateStr);
+  today.setHours(0, 0, 0, 0);
+  const date = new Date(dateStr + "T00:00:00");
   const endOfWeek = new Date(today);
   endOfWeek.setDate(today.getDate() + 6);
   endOfWeek.setHours(23, 59, 59, 999);
-  today.setHours(0, 0, 0, 0);
   return date >= today && date <= endOfWeek;
 }
 
 export default function Home() {
-  const [tasks, setTasks] = useState([
-    {
-      title: "Buy groceries",
-      date: "2025-05-29",
-      time: "23:58",
-      location: "Supermarket",
-      priority: 1,
-      complete: false,
-    },
-    {
-      title: "Finish project report",
-      date: "2025-05-31",
-      priority: 1,
-      complete: false,
-    },
-    {
-      title: "Call Alice",
-      date: "2025-06-01",
-      time: "14:00",
-      priority: 3,
-      complete: false,
-    },
-    {
-      title: "Read textbook chapter",
-      date: "2025-06-02",
-      time: "20:00",
-      priority: 2,
-      complete: false,
-    },
-    {
-      title: "Team meeting",
-      date: "2025-06-03",
-      time: "10:00",
-      location: "Library",
-      priority: 1,
-      complete: false,
-    },
-    {
-      title: "Submit assignment",
-      date: "2025-06-04",
-      time: "23:59",
-      priority: 1,
-      complete: false,
-    },
-    {
-      title: "Laundry",
-      date: "2025-06-05",
-      priority: 3,
-      complete: false,
-    },
-    {
-      title: "Workout",
-      date: "2025-06-06",
-      time: "18:00",
-      priority: 2,
-      complete: false,
-    },
-    {
-      title: "Dentist appointment",
-      date: "2025-06-07",
-      time: "09:00",
-      priority: 1,
-      complete: false,
-    },
-    {
-      title: "Plan weekend trip",
-      date: "2025-06-08",
-      priority: 3,
-      complete: false,
-    },
-  ]);
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
 
+  useEffect(() => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      setUser(user);
+      setLoading(false);
+      if (user) {
+        // Listen to this user's tasks
+        const q = query(collection(db, "users", user.uid, "tasks"));
+        const unsubscribeTasks = onSnapshot(q, (snapshot) => {
+          setTasks(
+            snapshot.docs.map((doc) => {
+              const data = doc.data();
+              return {
+                id: doc.id,
+                title: data.title ?? "",
+                date: data.date ?? "",
+                time: data.time,
+                location: data.location,
+                priority: typeof data.priority === "number" ? data.priority : 1,
+                complete: !!data.complete,
+              } as Task;
+            })
+          );
+        });
+        return () => unsubscribeTasks();
+      } else {
+        setTasks([]);
+      }
+    });
+    return () => unsubscribeAuth();
+  }, []);
+
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [tab, setTab] = useState<"today" | "week" | "later">("today");
+  const [showModal, setShowModal] = useState(false);
+  const [selectedTasks, setSelectedTasks] = useState<number[]>([]);
+  const [editIndex, setEditIndex] = useState<number | null>(null);
+  const [deleteIndex, setDeleteIndex] = useState<number | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
-  const toggleTask = (index: number) => {
-    setTasks((prev) =>
-      prev.map((task, i) =>
-        i === index ? { ...task, complete: !task.complete } : task
+  // Add Task form state
+  const [newTask, setNewTask] = useState({
+    title: "",
+    date: "",
+    time: "",
+    location: "",
+    priority: 1,
+  });
+
+  // Toggle completion for a single task
+  const toggleTask = async (index: number) => {
+    const task = tasks[index];
+    if (user) {
+      await updateDoc(doc(db, "users", user.uid, "tasks", task.id), {
+        complete: !task.complete,
+      });
+    }
+  };
+
+  // Complete and clear selected tasks
+  const handleCompleteSelected = async () => {
+    if (!user) return;
+    await Promise.all(
+      selectedTasks.map((idx) =>
+        deleteDoc(doc(db, "users", user.uid, "tasks", tasks[idx].id))
       )
     );
+    setSelectedTasks([]);
+  };
+
+  // Add new task handler
+  const handleAddTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTask.title || !newTask.date || !user) return;
+    if (editIndex !== null) {
+      // Edit mode
+      const taskToEdit = tasks[editIndex];
+      await updateDoc(doc(db, "users", user.uid, "tasks", taskToEdit.id), {
+        ...newTask,
+      });
+      setEditIndex(null);
+    } else {
+      // Add mode
+      await addDoc(collection(db, "users", user.uid, "tasks"), {
+        ...newTask,
+        complete: false,
+        priority: Number(newTask.priority),
+      });
+    }
+    setNewTask({
+      title: "",
+      date: "",
+      time: "",
+      location: "",
+      priority: 1,
+    });
+    setShowModal(false);
   };
 
   // Filter tasks by tab
   const filteredTasks = tasks.filter((task) => {
-    if (tab === "today") {
-      return isToday(task.date);
-    }
-    if (tab === "week") {
-      return isThisWeek(task.date);
-    }
-    return true; // "later" tab shows all tasks
+    if (tab === "today") return isToday(task.date);
+    if (tab === "week") return isThisWeek(task.date);
+    return true;
   });
 
   // Helper to filter tasks by priority
   const getTasksByPriority = (priority: number) =>
     filteredTasks.filter((task) => task.priority === priority);
 
+  if (loading) {
+    return <div className="text-white text-center mt-10">Loading...</div>;
+  }
+
+  if (!user) {
+    return <Login />;
+  }
+
   return (
     <main className="flex flex-col items-center justify-center min-h-screen p-8 bg-[#222326]">
       <h1 className="text-2xl font-bold mb-4 text-white">Todo List</h1>
+      <button
+        className="absolute top-4 right-4 bg-white text-[#CC0000] font-bold px-4 py-2 rounded shadow hover:bg-gray-100 transition"
+        onClick={() => signOut(auth)}
+      >
+        Logout
+      </button>
       <div className="w-full max-w-2xl">
         {/* Tabs */}
         <div className="flex">
@@ -161,80 +215,209 @@ export default function Home() {
         </div>
         {/* Red container */}
         <div
-          className="bg-[#CC0000] rounded-b-lg pt-8 p-4 shadow-lg flex flex-col gap-6"
+          className="bg-[#CC0000] rounded-b-lg pt-8 p-4 shadow-lg flex flex-col gap-6 relative"
           style={{ maxHeight: "500px", overflowY: "auto" }}
         >
-          {/* High Priority Folder */}
-          <div className="relative mb-2">
-            {/* Folder Tab */}
-            <div className="absolute -top-5  left-0 bg-white text-[#CC0000] font-bold px-6 py-1 rounded-t-lg border border-b-0 border-[#CC0000] shadow z-10">
-              High Priority
-            </div>
-            {/* Folder Body */}
-            <div className="pt-6 bg-white/90 rounded-lg border border-[#CC0000] shadow-inner min-h-[60px]">
-              <div className="flex flex-col gap-2 p-4">
-                {getTasksByPriority(1).length === 0 ? (
-                  <span className="text-[#CC0000]/70 text-sm">
-                    No high priority tasks
-                  </span>
-                ) : (
-                  getTasksByPriority(1).map((task, i) => (
-                    <Task
-                      key={i}
-                      {...task}
-                      onToggle={() => toggleTask(tasks.indexOf(task))}
-                    />
-                  ))
-                )}
+          <PriorityFolder
+            label="High Priority"
+            priority={1}
+            tasks={getTasksByPriority(1)}
+            onToggle={toggleTask}
+            allTasks={tasks}
+            onEdit={(index) => {
+              setEditIndex(index);
+              setNewTask({
+                title: tasks[index].title,
+                date: tasks[index].date,
+                time: tasks[index].time ?? "",
+                location: tasks[index].location ?? "",
+                priority: tasks[index].priority,
+              });
+              setShowModal(true);
+            }}
+            onDelete={(index) => {
+              setDeleteIndex(index);
+              setShowDeleteModal(true);
+            }}
+          />
+          <PriorityFolder
+            label="Medium Priority"
+            priority={2}
+            tasks={getTasksByPriority(2)}
+            onToggle={toggleTask}
+            allTasks={tasks}
+            onEdit={(index) => {
+              setEditIndex(index);
+              setNewTask({
+                title: tasks[index].title,
+                date: tasks[index].date,
+                time: tasks[index].time ?? "",
+                location: tasks[index].location ?? "",
+                priority: tasks[index].priority,
+              });
+              setShowModal(true);
+            }}
+            onDelete={(index) => {
+              setDeleteIndex(index);
+              setShowDeleteModal(true);
+            }}
+          />
+          <PriorityFolder
+            label="Low Priority"
+            priority={3}
+            tasks={getTasksByPriority(3)}
+            onToggle={toggleTask}
+            allTasks={tasks}
+            onEdit={(index) => {
+              setEditIndex(index);
+              setNewTask({
+                title: tasks[index].title,
+                date: tasks[index].date,
+                time: tasks[index].time ?? "",
+                location: tasks[index].location ?? "",
+                priority: tasks[index].priority,
+              });
+              setShowModal(true);
+            }}
+            onDelete={(index) => {
+              setDeleteIndex(index);
+              setShowDeleteModal(true);
+            }}
+          />
+          {/* Action Button */}
+          {selectedTasks.length === 0 ? (
+            <button
+              className="w-full mt-2 bg-white text-[#CC0000] font-bold py-3 rounded-lg shadow hover:bg-gray-100 transition text-lg"
+              onClick={() => setShowModal(true)}
+            >
+              + Add Task
+            </button>
+          ) : (
+            <button
+              className="w-full mt-2 bg-[#CC0000] text-white font-bold py-3 rounded-lg shadow hover:bg-[#a30000] transition text-lg"
+              onClick={handleCompleteSelected}
+            >
+              Complete & Clear Selected ({selectedTasks.length})
+            </button>
+          )}
+          {/* Modal */}
+          {showModal && (
+            <Modal
+              open={showModal}
+              onClose={() => {
+                setShowModal(false);
+                setEditIndex(null);
+              }}
+            >
+              <h2 className="text-xl font-bold mb-4 text-[#CC0000]">
+                {editIndex !== null ? "Editing Task" : "Add New Task"}
+              </h2>
+              <form
+                onSubmit={handleAddTask}
+                className="flex flex-col gap-3 text-black"
+              >
+                <input
+                  type="text"
+                  placeholder="Task title"
+                  className="px-2 py-1 rounded border border-[#CC0000] focus:outline-none text-black"
+                  value={newTask.title}
+                  onChange={(e) =>
+                    setNewTask({ ...newTask, title: e.target.value })
+                  }
+                  required
+                />
+                <input
+                  type="date"
+                  className="px-2 py-1 rounded border border-[#CC0000] focus:outline-none text-black"
+                  value={newTask.date}
+                  onChange={(e) =>
+                    setNewTask({ ...newTask, date: e.target.value })
+                  }
+                  required
+                />
+                <input
+                  type="time"
+                  className="px-2 py-1 rounded border border-[#CC0000] focus:outline-none text-black"
+                  value={newTask.time}
+                  onChange={(e) =>
+                    setNewTask({ ...newTask, time: e.target.value })
+                  }
+                />
+                <input
+                  type="text"
+                  placeholder="Location"
+                  className="px-2 py-1 rounded border border-[#CC0000] focus:outline-none text-black"
+                  value={newTask.location}
+                  onChange={(e) =>
+                    setNewTask({ ...newTask, location: e.target.value })
+                  }
+                />
+                <select
+                  className="px-2 py-1 rounded border border-[#CC0000] focus:outline-none text-black"
+                  value={newTask.priority}
+                  onChange={(e) =>
+                    setNewTask({
+                      ...newTask,
+                      priority: Number(e.target.value),
+                    })
+                  }
+                >
+                  <option value={1}>High</option>
+                  <option value={2}>Medium</option>
+                  <option value={3}>Low</option>
+                </select>
+                <button
+                  type="submit"
+                  className="bg-[#CC0000] text-white px-4 py-2 rounded font-bold hover:bg-[#a30000] transition mt-2"
+                >
+                  {editIndex !== null ? "Confirm Edits" : "Add Task"}
+                </button>
+              </form>
+            </Modal>
+          )}
+          {showDeleteModal && (
+            <Modal
+              open={showDeleteModal}
+              onClose={() => {
+                setShowDeleteModal(false);
+                setDeleteIndex(null);
+              }}
+            >
+              <h2 className="text-xl font-bold mb-4 text-[#CC0000]">
+                Confirm Delete
+              </h2>
+              <p className="mb-6">
+                Are you sure you want to delete this task? This action cannot be
+                undone.
+              </p>
+              <div className="flex justify-end gap-2">
+                <button
+                  className="px-4 py-2 rounded bg-gray-200 text-black font-bold"
+                  onClick={() => {
+                    setShowDeleteModal(false);
+                    setDeleteIndex(null);
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="px-4 py-2 rounded bg-red-600 text-white font-bold"
+                  onClick={async () => {
+                    if (deleteIndex !== null && user) {
+                      const taskToDelete = tasks[deleteIndex];
+                      await deleteDoc(
+                        doc(db, "users", user.uid, "tasks", taskToDelete.id)
+                      );
+                    }
+                    setShowDeleteModal(false);
+                    setDeleteIndex(null);
+                  }}
+                >
+                  Delete
+                </button>
               </div>
-            </div>
-          </div>
-          {/* Medium Priority Folder */}
-          <div className="relative mb-2">
-            <div className="absolute -top-5 left-0 bg-white text-[#CC0000] font-bold px-6 py-1 rounded-t-lg border border-b-0 border-[#CC0000] shadow z-10">
-              Medium Priority
-            </div>
-            <div className="pt-6 bg-white/90 rounded-lg border border-[#CC0000] shadow-inner min-h-[60px]">
-              <div className="flex flex-col gap-2 p-4">
-                {getTasksByPriority(2).length === 0 ? (
-                  <span className="text-[#CC0000]/70 text-sm">
-                    No medium priority tasks
-                  </span>
-                ) : (
-                  getTasksByPriority(2).map((task, i) => (
-                    <Task
-                      key={i}
-                      {...task}
-                      onToggle={() => toggleTask(tasks.indexOf(task))}
-                    />
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-          {/* Low Priority Folder */}
-          <div className="relative">
-            <div className="absolute -top-5 left-0 bg-white text-[#CC0000] font-bold px-6 py-1 rounded-t-lg border border-b-0 border-[#CC0000] shadow z-10">
-              Low Priority
-            </div>
-            <div className="pt-6 bg-white/90 rounded-lg border border-[#CC0000] shadow-inner min-h-[60px]">
-              <div className="flex flex-col gap-2 p-4">
-                {getTasksByPriority(3).length === 0 ? (
-                  <span className="text-[#CC0000]/70 text-sm">
-                    No low priority tasks
-                  </span>
-                ) : (
-                  getTasksByPriority(3).map((task, i) => (
-                    <Task
-                      key={i}
-                      {...task}
-                      onToggle={() => toggleTask(tasks.indexOf(task))}
-                    />
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
+            </Modal>
+          )}
         </div>
       </div>
     </main>
