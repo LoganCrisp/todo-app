@@ -8,6 +8,8 @@ interface TaskProps {
   priority: number;
   complete: boolean;
   onToggle: () => void;
+  onEdit?: () => void;
+  onDelete?: () => void; // Add this line
 }
 
 // Helper to convert "HH:mm" to "h:mm AM/PM"
@@ -27,6 +29,8 @@ const Task: React.FC<TaskProps> = ({
   location,
   complete,
   onToggle,
+  onEdit,
+  onDelete, // Add this line
 }) => {
   // NC State Red: #CC0000, White: #FFFFFF, Black: #000000
   return (
@@ -59,6 +63,24 @@ const Task: React.FC<TaskProps> = ({
           <span className="text-xs text-black">Location: {location}</span>
         )}
       </div>
+      {onEdit && (
+        <button
+          className="ml-2 text-[#CC0000] hover:underline text-sm font-bold"
+          onClick={onEdit}
+          aria-label="Edit Task"
+        >
+          Edit
+        </button>
+      )}
+      {onDelete && (
+        <button
+          className="ml-2 text-red-600 hover:underline text-sm font-bold"
+          onClick={onDelete}
+          aria-label="Delete Task"
+        >
+          Delete
+        </button>
+      )}
     </div>
   );
 };
