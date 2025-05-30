@@ -52,6 +52,14 @@ function isThisWeek(dateStr: string) {
   return date >= today && date <= endOfWeek;
 }
 
+function isOverdue(task: Task) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const taskDate = new Date(task.date + "T00:00:00");
+  // Not completed and due before today
+  return !task.complete && taskDate < today;
+}
+
 function CurrentTime() {
   const [time, setTime] = useState(() => {
     const now = new Date();
@@ -86,7 +94,7 @@ function CurrentTime() {
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const router = useRouter(); // ← ADD THIS
+  const router = useRouter();
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
@@ -133,6 +141,7 @@ export default function Home() {
   const [deleteIndex, setDeleteIndex] = useState<number | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [username, setUsername] = useState<string | null>(null);
+  const overdueTasks = tasks.filter(isOverdue);
 
   useEffect(() => {
     if (user) {
@@ -266,6 +275,36 @@ export default function Home() {
           className="bg-[#CC0000] rounded-b-lg pt-8 p-4 shadow-lg flex flex-col gap-6 relative"
           style={{ maxHeight: "500px", overflowY: "auto" }}
         >
+          {tab === "today" && overdueTasks.length > 0 && (
+            <PriorityFolder
+              label="Overdue"
+              priority={-1}
+              tasks={overdueTasks}
+              selectedTasks={selectedTasks}
+              setSelectedTasks={setSelectedTasks}
+              allTasks={tasks}
+              onEdit={(index) => {
+                setEditIndex(
+                  tasks.findIndex((t) => t.id === overdueTasks[index].id)
+                );
+                setNewTask({
+                  title: overdueTasks[index].title,
+                  date: overdueTasks[index].date,
+                  time: overdueTasks[index].time ?? "",
+                  location: overdueTasks[index].location ?? "",
+                  priority: overdueTasks[index].priority,
+                });
+                setShowModal(true);
+              }}
+              onDelete={(index) => {
+                setDeleteIndex(
+                  tasks.findIndex((t) => t.id === overdueTasks[index].id)
+                );
+                setShowDeleteModal(true);
+              }}
+            />
+          )}
+
           <PriorityFolder
             label="High Priority"
             priority={1}
@@ -335,22 +374,6 @@ export default function Home() {
               setShowDeleteModal(true);
             }}
           />
-          {/* Action Button */}
-          {selectedTasks.length === 0 ? (
-            <button
-              className="w-full mt-2 bg-white text-[#CC0000] font-bold py-3 rounded-lg shadow hover:bg-gray-100 transition text-lg"
-              onClick={() => setShowModal(true)}
-            >
-              + Add Task
-            </button>
-          ) : (
-            <button
-              className="w-full mt-2 bg-[#222326] text-white font-bold py-3 rounded-lg shadow hover:bg-[#1c1d1f] transition text-lg"
-              onClick={handleCompleteSelected}
-            >
-              Complete & Clear Selected ({selectedTasks.length})
-            </button>
-          )}
           {/* Modal */}
           {showModal && (
             <Modal
@@ -470,6 +493,21 @@ export default function Home() {
             </Modal>
           )}
         </div>
+        {selectedTasks.length === 0 ? (
+          <button
+            className="w-full mt-4 bg-white text-[#CC0000] font-bold py-3 rounded-lg shadow hover:bg-gray-100 transition text-lg"
+            onClick={() => setShowModal(true)}
+          >
+            + Add Task
+          </button>
+        ) : (
+          <button
+            className="w-full mt-4 bg-[#CC0000] text-white font-bold py-3 rounded-lg shadow hover:bg-[#a30000] transition text-lg"
+            onClick={handleCompleteSelected}
+          >
+            Complete & Clear Selected ({selectedTasks.length})
+          </button>
+        )}
       </div>
     </main>
   );

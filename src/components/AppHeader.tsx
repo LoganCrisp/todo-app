@@ -106,7 +106,7 @@ export default function AppHeader() {
           wut<span className="text-white">TODO</span>
         </span>
       </div>
-      <div className="absolute right-6 top-1/2 -translate-y-1/2 text-white text-lg font-semibold select-none tracking-wide opacity-80">
+      <div className="hidden sm:block absolute right-6 top-1/2 -translate-y-1/2 text-white text-lg font-semibold select-none tracking-wide opacity-80">
         {new Date().toLocaleDateString(undefined, {
           weekday: "long",
           month: "short",
