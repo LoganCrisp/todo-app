@@ -14,18 +14,19 @@ interface PriorityFolderProps {
   label: string;
   priority: number;
   tasks: TaskType[];
-  onToggle: (index: number) => void;
   allTasks: TaskType[];
+  selectedTasks: number[];
+  setSelectedTasks: React.Dispatch<React.SetStateAction<number[]>>;
   onEdit?: (index: number) => void;
   onDelete?: (index: number) => void;
 }
 
 const PriorityFolder: React.FC<PriorityFolderProps> = ({
   label,
-  // priority, // Removed since unused
   tasks,
-  onToggle,
   allTasks,
+  selectedTasks,
+  setSelectedTasks,
   onEdit,
   onDelete,
 }) => (
@@ -46,7 +47,16 @@ const PriorityFolder: React.FC<PriorityFolderProps> = ({
               <Task
                 key={task.id}
                 {...task}
-                onToggle={() => onToggle(globalIndex)}
+                selected={selectedTasks.includes(globalIndex)}
+                onSelect={() => {
+                  if (selectedTasks.includes(globalIndex)) {
+                    setSelectedTasks(
+                      selectedTasks.filter((i) => i !== globalIndex)
+                    );
+                  } else {
+                    setSelectedTasks([...selectedTasks, globalIndex]);
+                  }
+                }}
                 onEdit={onEdit ? () => onEdit(globalIndex) : undefined}
                 onDelete={onDelete ? () => onDelete(globalIndex) : undefined}
               />
