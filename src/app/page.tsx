@@ -267,7 +267,7 @@ export default function Home() {
             }`}
             onClick={() => setTab("later")}
           >
-            Later
+            All Tasks
           </button>
         </div>
         {/* Red container */}
