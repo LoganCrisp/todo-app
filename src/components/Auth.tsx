@@ -7,7 +7,7 @@ import {
   signInWithPopup,
 } from "firebase/auth";
 import { auth } from "../firebase";
-import { setDoc, doc } from "firebase/firestore";
+import { setDoc, doc, getDoc } from "firebase/firestore";
 import { db } from "../firebase";
 
 const provider = new GoogleAuthProvider();
@@ -62,7 +62,21 @@ export default function Login() {
   const handleGoogleLogin = async () => {
     setError("");
     try {
-      await signInWithPopup(auth, provider);
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+      // Check if user doc exists, if not create it
+      const userRef = doc(db, "users", user.uid);
+      const userSnap = await getDoc(userRef);
+
+      if (!userSnap.exists()) {
+        // Use Google displayName, fallback to email prefix
+        const username =
+          user.displayName || (user.email ? user.email.split("@")[0] : "User");
+        await setDoc(userRef, {
+          username,
+          email: user.email || "",
+        });
+      }
       router.push("/");
     } catch (err) {
       if (err instanceof Error) setError(err.message);
