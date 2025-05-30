@@ -7,9 +7,10 @@ interface TaskProps {
   location?: string;
   priority: number;
   complete: boolean;
-  onToggle: () => void;
+  selected: boolean;
+  onSelect: () => void;
   onEdit?: () => void;
-  onDelete?: () => void; // Add this line
+  onDelete?: () => void;
 }
 
 // Helper to convert "HH:mm" to "h:mm AM/PM"
@@ -28,24 +29,26 @@ const Task: React.FC<TaskProps> = ({
   time,
   location,
   complete,
-  onToggle,
+  selected,
+  onSelect,
   onEdit,
-  onDelete, // Add this line
+  onDelete,
 }) => {
-  // NC State Red: #CC0000, White: #FFFFFF, Black: #000000
   return (
     <div
       className="flex items-center gap-4 p-4 rounded shadow border w-full max-w-2xl"
       style={{
         backgroundColor: "#fff",
         borderColor: "#CC0000",
+        opacity: complete ? 0.5 : 1,
       }}
     >
       <input
         type="checkbox"
-        checked={complete}
-        onChange={onToggle}
+        checked={selected}
+        onChange={onSelect}
         className="h-5 w-5 accent-[#CC0000] border-black"
+        aria-label="Select Task"
       />
       <div className="flex flex-col flex-1">
         <span

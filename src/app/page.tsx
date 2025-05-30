@@ -1,10 +1,12 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { onAuthStateChanged, signOut } from "firebase/auth";
+import { onAuthStateChanged } from "firebase/auth";
 import type { User } from "firebase/auth";
 import { auth } from "../firebase";
 import { db } from "../firebase";
+import { useRouter } from "next/navigation";
+
 import {
   collection,
   query,
@@ -12,6 +14,7 @@ import {
   addDoc,
   updateDoc,
   deleteDoc,
+  getDoc,
   doc,
 } from "firebase/firestore";
 import PriorityFolder from "@/components/PriorityFolder";
@@ -49,9 +52,41 @@ function isThisWeek(dateStr: string) {
   return date >= today && date <= endOfWeek;
 }
 
+function CurrentTime() {
+  const [time, setTime] = useState(() => {
+    const now = new Date();
+    return now.toLocaleTimeString(undefined, {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+  });
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = new Date();
+      setTime(
+        now.toLocaleTimeString(undefined, {
+          hour: "numeric",
+          minute: "2-digit",
+          hour12: true,
+        })
+      );
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="text-white text-4xl md:text-5xl font-extrabold mb-2 text-center tracking-wider select-none drop-shadow-lg opacity-95">
+      {time}
+    </div>
+  );
+}
+
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const router = useRouter(); // ← ADD THIS
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
@@ -84,6 +119,12 @@ export default function Home() {
     return () => unsubscribeAuth();
   }, []);
 
+  useEffect(() => {
+    if (!loading && !user) {
+      router.replace("/auth");
+    }
+  }, [loading, user, router]);
+
   const [tasks, setTasks] = useState<Task[]>([]);
   const [tab, setTab] = useState<"today" | "week" | "later">("today");
   const [showModal, setShowModal] = useState(false);
@@ -91,6 +132,21 @@ export default function Home() {
   const [editIndex, setEditIndex] = useState<number | null>(null);
   const [deleteIndex, setDeleteIndex] = useState<number | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [username, setUsername] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (user) {
+      const fetchUsername = async () => {
+        const userDoc = await getDoc(doc(db, "users", user.uid));
+        if (userDoc.exists()) {
+          setUsername(userDoc.data().username || null);
+        }
+      };
+      fetchUsername();
+    } else {
+      setUsername(null);
+    }
+  }, [user]);
 
   // Add Task form state
   const [newTask, setNewTask] = useState({
@@ -101,24 +157,18 @@ export default function Home() {
     priority: 1,
   });
 
-  // Toggle completion for a single task
-  const toggleTask = async (index: number) => {
-    const task = tasks[index];
-    if (user) {
-      await updateDoc(doc(db, "users", user.uid, "tasks", task.id), {
-        complete: !task.complete,
-      });
-    }
-  };
-
   // Complete and clear selected tasks
   const handleCompleteSelected = async () => {
     if (!user) return;
     await Promise.all(
       selectedTasks.map((idx) =>
-        deleteDoc(doc(db, "users", user.uid, "tasks", tasks[idx].id))
+        updateDoc(doc(db, "users", user.uid, "tasks", tasks[idx].id), {
+          complete: true,
+          completedAt: new Date().toISOString(),
+        })
       )
     );
+
     setSelectedTasks([]);
   };
 
@@ -151,8 +201,9 @@ export default function Home() {
     setShowModal(false);
   };
 
-  // Filter tasks by tab
+  // Filter tasks by tab AND exclude completed tasks
   const filteredTasks = tasks.filter((task) => {
+    if (task.complete) return false; // Don't show completed tasks
     if (tab === "today") return isToday(task.date);
     if (tab === "week") return isThisWeek(task.date);
     return true;
@@ -171,14 +222,11 @@ export default function Home() {
   }
 
   return (
-    <main className="flex flex-col items-center justify-center min-h-screen p-8 bg-[#222326]">
-      <h1 className="text-2xl font-bold mb-4 text-white">Todo List</h1>
-      <button
-        className="absolute top-4 right-4 bg-white text-[#CC0000] font-bold px-4 py-2 rounded shadow hover:bg-gray-100 transition"
-        onClick={() => signOut(auth)}
-      >
-        Logout
-      </button>
+    <main className="flex flex-col items-center px-2 py-4">
+      <CurrentTime />
+      <h1 className="text-2xl font-bold mb-4 text-white">
+        {username ? `${username}'s Todo List` : "Todo List"}
+      </h1>
       <div className="w-full max-w-2xl">
         {/* Tabs */}
         <div className="flex">
@@ -222,8 +270,9 @@ export default function Home() {
             label="High Priority"
             priority={1}
             tasks={getTasksByPriority(1)}
-            onToggle={toggleTask}
             allTasks={tasks}
+            selectedTasks={selectedTasks}
+            setSelectedTasks={setSelectedTasks}
             onEdit={(index) => {
               setEditIndex(index);
               setNewTask({
@@ -244,7 +293,8 @@ export default function Home() {
             label="Medium Priority"
             priority={2}
             tasks={getTasksByPriority(2)}
-            onToggle={toggleTask}
+            selectedTasks={selectedTasks}
+            setSelectedTasks={setSelectedTasks}
             allTasks={tasks}
             onEdit={(index) => {
               setEditIndex(index);
@@ -266,7 +316,8 @@ export default function Home() {
             label="Low Priority"
             priority={3}
             tasks={getTasksByPriority(3)}
-            onToggle={toggleTask}
+            selectedTasks={selectedTasks}
+            setSelectedTasks={setSelectedTasks}
             allTasks={tasks}
             onEdit={(index) => {
               setEditIndex(index);
@@ -294,7 +345,7 @@ export default function Home() {
             </button>
           ) : (
             <button
-              className="w-full mt-2 bg-[#CC0000] text-white font-bold py-3 rounded-lg shadow hover:bg-[#a30000] transition text-lg"
+              className="w-full mt-2 bg-[#222326] text-white font-bold py-3 rounded-lg shadow hover:bg-[#1c1d1f] transition text-lg"
               onClick={handleCompleteSelected}
             >
               Complete & Clear Selected ({selectedTasks.length})
